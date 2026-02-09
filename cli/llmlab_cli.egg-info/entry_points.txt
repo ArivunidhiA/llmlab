@@ -1,0 +1,2 @@
+[console_scripts]
+llmlab = llmlab.main:cli

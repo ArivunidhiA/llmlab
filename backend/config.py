@@ -1,69 +1,61 @@
-"""Configuration for LLMlab backend"""
+"""
+Configuration management for LLMLab backend.
+
+Loads settings from environment variables with validation.
+"""
+
+from functools import lru_cache
+from typing import List
 
 from pydantic_settings import BaseSettings
-from typing import Optional
-import json
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment"""
-    
-    # Core
-    app_name: str = "LLMlab"
-    environment: str = "development"
-    debug: bool = True
-    
+    """Application settings loaded from environment variables."""
+
     # Database
-    database_url: str = "postgresql://user:password@localhost/llmlab"
-    supabase_url: Optional[str] = None
-    supabase_key: Optional[str] = None
-    
-    # Auth
-    secret_key: str = "your-secret-key-change-in-production"
-    algorithm: str = "HS256"
-    access_token_expire_minutes: int = 60
-    
-    # Provider Rates (JSON string or dict)
-    # Format: {"openai": {"gpt-4": {"input": 0.03, "output": 0.06}}}
-    provider_rates: str = json.dumps({
-        "openai": {
-            "gpt-4": {"input": 0.03, "output": 0.06},
-            "gpt-4-turbo": {"input": 0.01, "output": 0.03},
-            "gpt-3.5-turbo": {"input": 0.0005, "output": 0.0015},
-            "gpt-4o": {"input": 0.005, "output": 0.015},
-        },
-        "anthropic": {
-            "claude-3-opus": {"input": 0.015, "output": 0.075},
-            "claude-3-sonnet": {"input": 0.003, "output": 0.015},
-            "claude-3-haiku": {"input": 0.00025, "output": 0.00125},
-        },
-        "google": {
-            "gemini-1.0-pro": {"input": 0.0005, "output": 0.0015},
-            "gemini-1.5-pro": {"input": 0.0035, "output": 0.0105},
-        },
-        "cohere": {
-            "command": {"input": 0.0001, "output": 0.0003},
-            "command-light": {"input": 0.00003, "output": 0.0001},
-        },
-    })
-    
-    # Webhooks
-    slack_webhook_url: Optional[str] = None
-    discord_webhook_url: Optional[str] = None
-    
+    database_url: str
+
+    # Security
+    jwt_secret: str
+    encryption_key: str
+    jwt_expiry_hours: int = 24
+
+    # GitHub OAuth
+    github_client_id: str
+    github_client_secret: str
+    github_redirect_uri: str = "http://localhost:8000/auth/github/callback"
+
     # CORS
-    cors_origins: list = ["http://localhost:3000", "http://localhost:8000"]
-    
+    cors_origins: str = "http://localhost:3000"
+
+    # Rate Limiting
+    rate_limit_per_minute: int = 100
+
+    # Environment
+    environment: str = "development"
+
     class Config:
         env_file = ".env"
-        case_sensitive = False
+        env_file_encoding = "utf-8"
+
+    @property
+    def cors_origins_list(self) -> List[str]:
+        """Parse CORS origins from comma-separated string."""
+        return [origin.strip() for origin in self.cors_origins.split(",")]
+
+    @property
+    def is_production(self) -> bool:
+        """Check if running in production environment."""
+        return self.environment.lower() == "production"
 
 
-settings = Settings()
+@lru_cache()
+def get_settings() -> Settings:
+    """
+    Get cached settings instance.
 
-
-def get_provider_rates() -> dict:
-    """Parse provider rates from JSON string"""
-    if isinstance(settings.provider_rates, str):
-        return json.loads(settings.provider_rates)
-    return settings.provider_rates
+    Returns:
+        Settings: Application settings singleton.
+    """
+    return Settings()

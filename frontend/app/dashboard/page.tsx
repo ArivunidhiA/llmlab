@@ -1,341 +1,218 @@
-"use client";
+/**
+ * Dashboard Page
+ * @description Main dashboard with cost summary, model chart, and daily table
+ */
 
-import { useState, useEffect } from "react";
-import Header from "@/components/Header";
-import CostCard from "@/components/CostCard";
-import BarChart from "@/components/BarChart";
-import LineChart from "@/components/LineChart";
-import BudgetProgressBar from "@/components/BudgetProgressBar";
-import { Card, CardBody, CardHeader } from "@/components/Card";
-import Alert from "@/components/Alert";
-import { api, pollMetrics } from "@/lib/api";
-import { DashboardMetrics, User } from "@/types";
-import { formatCurrency } from "@/lib/utils";
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import Navigation from '@/components/Navigation';
+import CostCard from '@/components/CostCard';
+import ModelChart from '@/components/ModelChart';
+import DailyTable from '@/components/DailyTable';
+import { api, isAuthenticated, getUser } from '@/lib/api';
+import { Stats, User } from '@/types';
+
+// Mock data for demo/development
+const MOCK_STATS: Stats = {
+  today: 12.47,
+  this_month: 342.89,
+  all_time: 1247.56,
+  by_model: [
+    { model: 'gpt-4', cost: 156.23, percentage: 45.5, requests: 2341, tokens: 450000 },
+    { model: 'gpt-4-turbo', cost: 89.12, percentage: 26.0, requests: 1567, tokens: 890000 },
+    { model: 'gpt-3.5-turbo', cost: 45.67, percentage: 13.3, requests: 8934, tokens: 2100000 },
+    { model: 'claude-3-opus', cost: 34.21, percentage: 10.0, requests: 234, tokens: 120000 },
+    { model: 'claude-3-sonnet', cost: 17.66, percentage: 5.2, requests: 567, tokens: 340000 },
+  ],
+  daily_costs: Array.from({ length: 30 }, (_, i) => {
+    const date = new Date();
+    date.setDate(date.getDate() - i);
+    return {
+      date: date.toISOString().split('T')[0],
+      cost: Math.random() * 20 + 5,
+      requests: Math.floor(Math.random() * 500 + 100),
+    };
+  }),
+};
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
-  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [stats, setStats] = useState<Stats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  useEffect(() => {
-    loadData();
+  /**
+   * Fetch stats from API
+   */
+  const fetchStats = useCallback(async () => {
+    try {
+      const data = await api.getStats();
+      setStats(data);
+      setLastUpdated(new Date());
+      setError(null);
+    } catch (err) {
+      // Use mock data if API fails (for demo purposes)
+      console.warn('Using mock data:', err);
+      setStats(MOCK_STATS);
+      setLastUpdated(new Date());
+    }
   }, []);
 
-  const loadData = async () => {
-    try {
-      setIsLoading(true);
-      setError("");
+  /**
+   * Initial load and auth check
+   */
+  useEffect(() => {
+    const init = async () => {
+      // Check authentication
+      if (!isAuthenticated()) {
+        router.push('/');
+        return;
+      }
 
-      // Load metrics
-      const metricsData = await api.getDashboardMetrics();
-      setMetrics(metricsData);
+      // Load user from storage
+      const storedUser = getUser();
+      if (storedUser) {
+        setUser(storedUser);
+      }
 
-      // Load user (for demo, using mock data)
-      const mockUser: User = {
-        id: "1",
-        email: "user@example.com",
-        name: "John Doe",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      setUser(mockUser);
-
-      // Start polling for updates
-      const unsubscribe = await pollMetrics(
-        (newMetrics) => setMetrics(newMetrics),
-        30000 // Poll every 30 seconds
-      );
-
-      return () => unsubscribe();
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to load dashboard data"
-      );
-      // Demo data fallback
-      setMetrics(getMockMetrics());
-      setUser({
-        id: "1",
-        email: "user@example.com",
-        name: "John Doe",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      });
-    } finally {
+      // Fetch initial stats
+      await fetchStats();
       setIsLoading(false);
-    }
-  };
+    };
 
-  if (!user || !metrics) {
+    init();
+  }, [router, fetchStats]);
+
+  /**
+   * Poll for updates every 5 seconds
+   */
+  useEffect(() => {
+    if (isLoading) return;
+
+    const interval = setInterval(fetchStats, 5000);
+    return () => clearInterval(interval);
+  }, [isLoading, fetchStats]);
+
+  // Loading state
+  if (isLoading) {
     return (
-      <>
-        <Header showNav={true} user={user || undefined} />
-        <div className="flex items-center justify-center min-h-screen">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+        <Navigation showUserMenu={true} />
+        <div className="flex items-center justify-center h-[calc(100vh-64px)]">
           <div className="text-center">
-            <div className="inline-block animate-spin">
-              <svg
-                className="w-12 h-12 text-blue-600"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                />
-              </svg>
-            </div>
-            <p className="mt-4 text-slate-600 dark:text-slate-400">
-              Loading dashboard...
-            </p>
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-2 border-slate-300 border-t-slate-900 dark:border-slate-600 dark:border-t-white" />
+            <p className="mt-4 text-slate-500 dark:text-slate-400">Loading dashboard...</p>
           </div>
         </div>
-      </>
+      </div>
     );
   }
 
   return (
-    <>
-      <Header showNav={true} user={user} />
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+      <Navigation showUserMenu={true} />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-50 mb-2">
-            Dashboard
-          </h1>
-          <p className="text-slate-600 dark:text-slate-400">
-            Welcome back, {user.name}. Here's your AI cost overview.
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                Dashboard
+              </h1>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                {user?.name ? `Welcome back, ${user.name}` : 'Your LLM cost overview'}
+              </p>
+            </div>
+            {lastUpdated && (
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                Updated {lastUpdated.toLocaleTimeString()}
+              </p>
+            )}
+          </div>
         </div>
 
-        {/* Alerts */}
+        {/* Error banner */}
         {error && (
-          <Alert variant="warning" title="Data Loading" className="mb-6">
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-700 dark:text-red-400 text-sm">
             {error}
-          </Alert>
+          </div>
         )}
 
-        {/* Cost Cards */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {/* Cost Summary Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           <CostCard
-            title="Total Spend"
-            amount={metrics.total_spend}
-            change={15.3}
-            trend="up"
+            title="Today"
+            amount={stats?.today || 0}
+            subtitle="Current day spend"
           />
           <CostCard
             title="This Month"
-            amount={metrics.monthly_spend}
-            change={8.2}
-            trend="up"
+            amount={stats?.this_month || 0}
+            subtitle="Month to date"
           />
           <CostCard
-            title="Today"
-            amount={metrics.daily_spend}
-            change={-2.5}
-            trend="down"
-          />
-          <CostCard
-            title="Budget Remaining"
-            amount={Math.max(
-              0,
-              metrics.budget_limit - metrics.monthly_spend
-            )}
-            change={0}
-            trend="neutral"
+            title="All Time"
+            amount={stats?.all_time || 0}
+            subtitle="Total spend"
           />
         </div>
 
-        {/* Budget Status and Charts Grid */}
-        <div className="grid lg:grid-cols-3 gap-8 mb-8">
-          {/* Budget Progress */}
-          <div className="lg:col-span-1">
-            <BudgetProgressBar
-              spent={metrics.monthly_spend}
-              limit={metrics.budget_limit}
-              showAlert={true}
-            />
+        {/* Charts Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* Model Chart */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+              Cost by Model
+            </h2>
+            <ModelChart data={stats?.by_model || []} />
           </div>
 
-          {/* Spend by Model */}
-          <div className="lg:col-span-2">
-            <Card variant="elevated">
-              <CardHeader title="Spend by Model" />
-              <CardBody>
-                <BarChart
-                  data={metrics.spend_by_model.map((item) => ({
-                    name: item.model,
-                    cost: item.cost,
-                  }))}
-                  dataKey="cost"
-                  height={300}
-                />
-              </CardBody>
-            </Card>
+          {/* Daily Costs Table */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+              Daily Costs
+            </h2>
+            <div className="max-h-80 overflow-y-auto">
+              <DailyTable data={stats?.daily_costs || []} />
+            </div>
           </div>
         </div>
 
-        {/* Spend Trends */}
-        <div className="mb-8">
-          <Card variant="elevated">
-            <CardHeader title="Spend Trends" subtitle="Last 30 days" />
-            <CardBody>
-              <LineChart
-                data={metrics.spend_trends.map((item) => ({
-                  date: item.date,
-                  amount: item.amount,
-                }))}
-                dataKey="amount"
-                height={350}
-              />
-            </CardBody>
-          </Card>
-        </div>
-
-        {/* Recommendations */}
-        <div className="grid lg:grid-cols-2 gap-8">
-          <Card variant="elevated">
-            <CardHeader title="Recommendations" subtitle="Save up to 40% on costs" />
-            <CardBody>
-              {metrics.recommendations.length > 0 ? (
-                <div className="space-y-4">
-                  {metrics.recommendations.slice(0, 5).map((rec) => (
-                    <div
-                      key={rec.id}
-                      className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 transition-colors"
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <h4 className="font-semibold text-slate-900 dark:text-slate-50">
-                          {rec.title}
-                        </h4>
-                        <span
-                          className={`px-2 py-1 rounded text-xs font-medium ${
-                            rec.priority === "high"
-                              ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400"
-                              : rec.priority === "medium"
-                              ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400"
-                              : "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"
-                          }`}
-                        >
-                          {rec.priority}
-                        </span>
-                      </div>
-                      <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">
-                        {rec.description}
-                      </p>
-                      <p className="text-sm font-semibold text-green-600 dark:text-green-400">
-                        Save {formatCurrency(rec.potential_savings)}/month
-                      </p>
-                    </div>
-                  ))}
+        {/* Model breakdown details */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+            Model Breakdown
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {stats?.by_model.map((model) => (
+              <div
+                key={model.model}
+                className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-medium text-slate-900 dark:text-white text-sm">
+                    {model.model}
+                  </span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    {model.percentage.toFixed(1)}%
+                  </span>
                 </div>
-              ) : (
-                <p className="text-center py-8 text-slate-500 dark:text-slate-400">
-                  No recommendations at the moment
+                <p className="text-2xl font-semibold text-slate-900 dark:text-white">
+                  ${model.cost.toFixed(2)}
                 </p>
-              )}
-            </CardBody>
-          </Card>
-
-          {/* Model Usage Details */}
-          <Card variant="elevated">
-            <CardHeader title="Model Usage" subtitle="Cost breakdown" />
-            <CardBody>
-              <div className="space-y-3">
-                {metrics.spend_by_model.map((model) => (
-                  <div
-                    key={model.model}
-                    className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-800"
-                  >
-                    <div className="flex-1">
-                      <p className="font-medium text-slate-900 dark:text-slate-50">
-                        {model.model}
-                      </p>
-                      <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 mt-1">
-                        <div
-                          className="bg-blue-500 h-full rounded-full"
-                          style={{ width: `${model.percentage}%` }}
-                        />
-                      </div>
-                    </div>
-                    <div className="ml-4 text-right">
-                      <p className="font-semibold text-slate-900 dark:text-slate-50">
-                        {formatCurrency(model.cost)}
-                      </p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        {model.percentage.toFixed(1)}%
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  {model.requests.toLocaleString()} requests
+                </p>
               </div>
-            </CardBody>
-          </Card>
+            ))}
+          </div>
         </div>
       </main>
-    </>
+    </div>
   );
-}
-
-// Mock data for demo
-function getMockMetrics(): DashboardMetrics {
-  return {
-    total_spend: 4250.5,
-    monthly_spend: 1240.75,
-    daily_spend: 42.15,
-    budget_limit: 2000,
-    budget_percentage: 62.04,
-    spend_by_model: [
-      { model: "GPT-4", cost: 520.5, percentage: 41.9, tokens: 1250000 },
-      { model: "Claude-3", cost: 380.25, percentage: 30.6, tokens: 950000 },
-      { model: "GPT-3.5", cost: 240.0, percentage: 19.3, tokens: 2100000 },
-      { model: "Llama-2", cost: 100.0, percentage: 8.2, tokens: 500000 },
-    ],
-    spend_trends: [
-      { date: "Jan 1", amount: 35, model: "all" },
-      { date: "Jan 5", amount: 45, model: "all" },
-      { date: "Jan 10", amount: 38, model: "all" },
-      { date: "Jan 15", amount: 52, model: "all" },
-      { date: "Jan 20", amount: 48, model: "all" },
-      { date: "Jan 25", amount: 42, model: "all" },
-      { date: "Jan 30", amount: 50, model: "all" },
-    ],
-    recommendations: [
-      {
-        id: "1",
-        title: "Switch 30% GPT-4 to GPT-3.5",
-        description:
-          "Reduce costs by using GPT-3.5 for less complex tasks while maintaining quality.",
-        potential_savings: 156.15,
-        category: "cost_reduction",
-        priority: "high",
-      },
-      {
-        id: "2",
-        title: "Optimize prompt caching",
-        description:
-          "Implement prompt caching to reduce redundant API calls by 25%.",
-        potential_savings: 310.19,
-        category: "optimization",
-        priority: "high",
-      },
-      {
-        id: "3",
-        title: "Batch process requests",
-        description: "Combine multiple requests into batch operations for 15% savings.",
-        potential_savings: 186.11,
-        category: "optimization",
-        priority: "medium",
-      },
-    ],
-  };
 }

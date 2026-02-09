@@ -1,49 +1,61 @@
-"""Database connection and session management"""
+"""
+Database connection and session management.
+
+Uses SQLAlchemy with Supabase PostgreSQL.
+"""
+
+from typing import Generator
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy.pool import NullPool
-from typing import Generator
-import os
+from sqlalchemy.orm import Session, sessionmaker, declarative_base
 
-from config import settings
+from config import get_settings
 
-# For local development with PostgreSQL
-DATABASE_URL = settings.database_url
-
-# For Supabase (if configured)
-if settings.supabase_url and settings.supabase_key:
-    # Construct direct PostgreSQL connection string from Supabase
-    DATABASE_URL = f"postgresql://postgres:{settings.supabase_key}@{settings.supabase_url.replace('https://', '')}/postgres"
-
-# Create engine
-engine = create_engine(
-    DATABASE_URL,
-    echo=settings.debug,
-    poolclass=NullPool,  # Disable connection pooling for serverless
-    pool_pre_ping=True,  # Check connections before use
-)
-
-# Session factory
-SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=engine,
-)
-
-# Base class for models
+# Create base class for models
 Base = declarative_base()
 
 
-def get_db() -> Generator:
-    """Dependency for FastAPI to get DB session"""
+def get_engine():
+    """
+    Create database engine with connection pooling.
+
+    Returns:
+        Engine: SQLAlchemy engine instance.
+    """
+    settings = get_settings()
+    return create_engine(
+        settings.database_url,
+        pool_size=5,
+        max_overflow=10,
+        pool_timeout=30,
+        pool_recycle=1800,
+        echo=not settings.is_production,
+    )
+
+
+# Create engine and session factory
+engine = get_engine()
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def init_db() -> None:
+    """
+    Initialize database tables.
+
+    Creates all tables defined in models if they don't exist.
+    """
+    Base.metadata.create_all(bind=engine)
+
+
+def get_db() -> Generator[Session, None, None]:
+    """
+    Get database session dependency.
+
+    Yields:
+        Session: Database session that auto-closes.
+    """
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
-
-
-def init_db():
-    """Create all tables"""
-    Base.metadata.create_all(bind=engine)

@@ -1,44 +1,30 @@
-import { Card, CardBody } from "./Card";
-import { formatCurrency } from "@/lib/utils";
+/**
+ * CostCard Component
+ * @description Display a single cost metric with title and formatted amount
+ */
 
-interface CostCardProps {
+import { formatCurrency } from '@/lib/utils';
+
+export interface CostCardProps {
   title: string;
   amount: number;
-  change?: number;
-  trend?: "up" | "down" | "neutral";
+  subtitle?: string;
 }
 
-export const CostCard = ({
-  title,
-  amount,
-  change,
-  trend,
-}: CostCardProps) => {
-  const trendColor =
-    trend === "up"
-      ? "text-red-600 dark:text-red-400"
-      : trend === "down"
-      ? "text-green-600 dark:text-green-400"
-      : "text-slate-600 dark:text-slate-400";
-
+export default function CostCard({ title, amount, subtitle }: CostCardProps) {
   return (
-    <Card variant="elevated" className="h-full">
-      <CardBody>
-        <p className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">
-          {title}
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 transition-all hover:shadow-md">
+      <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">
+        {title}
+      </p>
+      <p className="text-3xl font-semibold text-slate-900 dark:text-white tracking-tight">
+        {formatCurrency(amount)}
+      </p>
+      {subtitle && (
+        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+          {subtitle}
         </p>
-        <p className="text-3xl font-bold text-slate-900 dark:text-slate-50 mb-2">
-          {formatCurrency(amount)}
-        </p>
-        {change !== undefined && (
-          <p className={`text-sm font-medium flex items-center gap-1 ${trendColor}`}>
-            {trend === "up" ? "↑" : trend === "down" ? "↓" : "→"}
-            {Math.abs(change).toFixed(1)}% vs last month
-          </p>
-        )}
-      </CardBody>
-    </Card>
+      )}
+    </div>
   );
-};
-
-export default CostCard;
+}
