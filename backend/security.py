@@ -1,129 +1,92 @@
-"""Security utilities for authentication"""
+"""
+Security utilities for encryption and API key management.
 
-from passlib.context import CryptContext
-from datetime import datetime, timedelta
-from typing import Optional
-from jose import JWTError, jwt
-from fastapi import Depends, HTTPException, status
-from sqlalchemy.orm import Session
+Uses Fernet symmetric encryption for API keys.
+"""
 
-from config import settings
-from database import get_db
-from models import User
+from cryptography.fernet import Fernet, InvalidToken
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+from config import get_settings
 
 
-def get_password_hash(password: str) -> str:
-    """Hash a password"""
-    return pwd_context.hash(password)
+def get_fernet() -> Fernet:
+    """
+    Get Fernet instance for encryption/decryption.
 
+    Returns:
+        Fernet: Configured Fernet instance.
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against its hash"""
-    return pwd_context.verify(plain_password, hashed_password)
-
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Create JWT access token"""
-    to_encode = data.copy()
-    
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(
-            minutes=settings.access_token_expire_minutes
-        )
-    
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(
-        to_encode,
-        settings.secret_key,
-        algorithm=settings.algorithm
-    )
-    return encoded_jwt
-
-
-def get_current_user(
-    token: str = Depends(lambda: None),
-    db: Session = Depends(get_db)
-) -> User:
-    """Get current user from JWT token"""
-    from fastapi import Request
-    from fastapi.security import HTTPBearer, HTTPAuthCredentials
-    
-    # This is a simplified version - in production, use HTTPBearer properly
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated"
-        )
-    
+    Raises:
+        ValueError: If encryption key is invalid.
+    """
+    settings = get_settings()
     try:
-        payload = jwt.decode(
-            token,
-            settings.secret_key,
-            algorithms=[settings.algorithm]
-        )
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token"
-            )
-    except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token"
-        )
-    
-    user = db.query(User).filter(User.id == user_id).first()
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found"
-        )
-    
-    return user
+        return Fernet(settings.encryption_key.encode())
+    except Exception as e:
+        raise ValueError(f"Invalid encryption key: {e}")
 
 
-# Alternative: Use HTTPBearer for cleaner dependency
-from fastapi.security import HTTPBearer
+def encrypt_api_key(api_key: str) -> str:
+    """
+    Encrypt an API key for secure storage.
 
-security = HTTPBearer()
+    Args:
+        api_key: Plain text API key to encrypt.
+
+    Returns:
+        str: Base64-encoded encrypted key.
+
+    Example:
+        >>> encrypted = encrypt_api_key("sk-abc123...")
+        >>> # encrypted is safe to store in database
+    """
+    fernet = get_fernet()
+    encrypted = fernet.encrypt(api_key.encode())
+    return encrypted.decode()
 
 
-async def get_current_user_v2(
-    credentials: HTTPAuthCredentials = Depends(security),
-    db: Session = Depends(get_db)
-) -> User:
-    """Get current user from Bearer token"""
-    token = credentials.credentials
-    
+def decrypt_api_key(encrypted_key: str) -> str:
+    """
+    Decrypt an encrypted API key.
+
+    Args:
+        encrypted_key: Base64-encoded encrypted key.
+
+    Returns:
+        str: Original plain text API key.
+
+    Raises:
+        InvalidToken: If decryption fails (wrong key or corrupted data).
+
+    Example:
+        >>> decrypted = decrypt_api_key(encrypted)
+        >>> # decrypted contains original "sk-abc123..."
+    """
+    fernet = get_fernet()
     try:
-        payload = jwt.decode(
-            token,
-            settings.secret_key,
-            algorithms=[settings.algorithm]
-        )
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token"
-            )
-    except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token"
-        )
-    
-    user = db.query(User).filter(User.id == user_id).first()
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found"
-        )
-    
-    return user
+        decrypted = fernet.decrypt(encrypted_key.encode())
+        return decrypted.decode()
+    except InvalidToken:
+        raise ValueError("Failed to decrypt API key - invalid or corrupted data")
+
+
+def mask_api_key(api_key: str, show_chars: int = 4) -> str:
+    """
+    Mask an API key for safe display.
+
+    Shows only the first few characters.
+
+    Args:
+        api_key: Full API key to mask.
+        show_chars: Number of characters to show at start.
+
+    Returns:
+        str: Masked key like "sk-a...****"
+
+    Example:
+        >>> mask_api_key("sk-abc123xyz")
+        'sk-a...****'
+    """
+    if len(api_key) <= show_chars:
+        return "*" * len(api_key)
+    return f"{api_key[:show_chars]}...****"

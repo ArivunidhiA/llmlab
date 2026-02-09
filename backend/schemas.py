@@ -1,170 +1,159 @@
-"""Pydantic schemas for request/response validation"""
+"""
+Pydantic schemas for request/response validation.
 
-from pydantic import BaseModel, EmailStr
-from typing import Optional, List
+All API inputs and outputs are validated through these schemas.
+"""
+
 from datetime import datetime
+from typing import List, Optional
+
+from pydantic import BaseModel, Field
 
 
-# ============ AUTH ============
-
-class UserCreate(BaseModel):
-    email: EmailStr
-    password: str
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
+# =============================================================================
+# AUTHENTICATION
+# =============================================================================
 
 
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
+class GitHubAuthRequest(BaseModel):
+    """Request to exchange GitHub OAuth code for token."""
+
+    code: str = Field(..., description="GitHub OAuth authorization code")
+
+
+class AuthResponse(BaseModel):
+    """Response after successful authentication."""
+
+    user_id: str = Field(..., description="User's unique identifier")
+    email: str = Field(..., description="User's email address")
+    username: Optional[str] = Field(None, description="GitHub username")
+    token: str = Field(..., description="JWT access token")
+    expires_in: int = Field(..., description="Token expiry in seconds")
 
 
 class UserResponse(BaseModel):
+    """User profile information."""
+
     id: str
+    github_id: int
     email: str
-    first_name: Optional[str]
-    last_name: Optional[str]
+    username: Optional[str]
+    avatar_url: Optional[str]
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
 
 
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-    expires_in: int
+# =============================================================================
+# API KEYS
+# =============================================================================
 
 
-# ============ EVENTS ============
+class ApiKeyCreate(BaseModel):
+    """Request to store a new API key."""
 
-class EventCreate(BaseModel):
-    provider: str  # openai, anthropic, google, cohere
-    model: str  # gpt-4, claude-3, etc
-    input_tokens: int = 0
-    output_tokens: int = 0
-    duration_ms: float = 0.0
-    request_metadata: Optional[dict] = {}
+    provider: str = Field(
+        ...,
+        description="Provider name",
+        pattern="^(openai|anthropic)$",
+    )
+    api_key: str = Field(
+        ...,
+        min_length=10,
+        description="Your real API key for the provider",
+    )
 
 
-class EventResponse(BaseModel):
-    id: str
-    provider: str
-    model: str
-    input_tokens: int
-    output_tokens: int
-    duration_ms: float
-    calculated_cost: float
-    created_at: datetime
-    
+class ApiKeyResponse(BaseModel):
+    """Response after creating/retrieving API key."""
+
+    id: str = Field(..., description="Key identifier")
+    provider: str = Field(..., description="Provider name")
+    proxy_key: str = Field(..., description="Proxy key to use in your apps")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    last_used_at: Optional[datetime] = Field(None, description="Last usage timestamp")
+    is_active: bool = Field(..., description="Whether key is active")
+
     class Config:
         from_attributes = True
 
 
-class EventSummary(BaseModel):
-    total_events: int
-    total_cost: float
-    total_tokens: int
-    providers: dict  # {provider: {count, cost}}
-    models: dict  # {model: {count, cost}}
-    by_day: dict  # {date: {count, cost}}
+class ApiKeyListResponse(BaseModel):
+    """List of user's API keys."""
+
+    keys: List[ApiKeyResponse]
 
 
-# ============ COSTS ============
-
-class CostSummary(BaseModel):
-    today: float = 0.0
-    this_week: float = 0.0
-    this_month: float = 0.0
-    total: float = 0.0
-    
-    today_events: int = 0
-    week_events: int = 0
-    month_events: int = 0
-    
-    by_provider: dict  # {provider: cost}
-    by_model: dict  # {model: cost}
-    by_day: dict  # {date: cost}
+# =============================================================================
+# PROXY
+# =============================================================================
 
 
-class CostRecommendation(BaseModel):
-    title: str
-    description: str
-    potential_savings: float
-    priority: str  # high, medium, low
-    action: str
+class ProxyResponse(BaseModel):
+    """Generic proxy response wrapper."""
+
+    success: bool
+    data: Optional[dict] = None
+    error: Optional[str] = None
 
 
-# ============ BUDGETS ============
-
-class BudgetCreate(BaseModel):
-    monthly_limit: float
-    alert_channel: str = "email"  # email, slack, discord
-    alert_at_50: bool = True
-    alert_at_80: bool = True
-    alert_at_100: bool = True
+# =============================================================================
+# STATS
+# =============================================================================
 
 
-class BudgetUpdate(BaseModel):
-    monthly_limit: Optional[float] = None
-    alert_channel: Optional[str] = None
-    alert_at_50: Optional[bool] = None
-    alert_at_80: Optional[bool] = None
-    alert_at_100: Optional[bool] = None
+class ModelCost(BaseModel):
+    """Cost breakdown for a single model."""
+
+    model: str = Field(..., description="Model name")
+    provider: str = Field(..., description="Provider name")
+    total_tokens: int = Field(..., description="Total tokens used")
+    cost_usd: float = Field(..., description="Total cost in USD")
+    call_count: int = Field(..., description="Number of API calls")
 
 
-class BudgetResponse(BaseModel):
-    id: str
-    monthly_limit: float
-    alert_channel: str
-    current_spend: float
-    remaining: float
-    percentage_used: float
-    created_at: datetime
-    
-    class Config:
-        from_attributes = True
+class DailyCost(BaseModel):
+    """Cost for a single day."""
+
+    date: str = Field(..., description="Date in YYYY-MM-DD format")
+    cost_usd: float = Field(..., description="Total cost for the day")
+    call_count: int = Field(..., description="Number of API calls")
 
 
-class BudgetAlert(BaseModel):
-    budget_id: str
-    current_spend: float
-    limit: float
-    percentage: int
-    alert_type: str  # 50%, 80%, 100%
+class StatsResponse(BaseModel):
+    """User's cost statistics."""
+
+    period: str = Field(..., description="Time period (today, week, month, all)")
+    total_usd: float = Field(..., description="Total cost in USD")
+    total_calls: int = Field(..., description="Total number of API calls")
+    total_tokens: int = Field(..., description="Total tokens used")
+    by_model: List[ModelCost] = Field(..., description="Cost breakdown by model")
+    by_day: List[DailyCost] = Field(..., description="Cost breakdown by day")
 
 
-# ============ WEBHOOKS ============
+# =============================================================================
+# HEALTH
+# =============================================================================
 
-class WebhookUpdate(BaseModel):
-    slack_webhook: Optional[str] = None
-    discord_webhook: Optional[str] = None
-    email_alerts: Optional[bool] = None
-
-
-# ============ API KEYS ============
-
-class APIKeyCreate(BaseModel):
-    provider: str
-    encrypted_key: str
-
-
-class APIKeyResponse(BaseModel):
-    id: str
-    provider: str
-    key_prefix: str
-    created_at: datetime
-    last_used: Optional[datetime]
-    is_active: bool
-    
-    class Config:
-        from_attributes = True
-
-
-# ============ HEALTH ============
 
 class HealthResponse(BaseModel):
-    status: str = "healthy"
-    version: str = "0.1.0"
-    database: str = "connected"
-    timestamp: datetime
+    """API health check response."""
+
+    status: str = Field(default="healthy", description="Service status")
+    database: str = Field(..., description="Database connection status")
+    version: str = Field(default="1.0.0", description="API version")
+    uptime_seconds: int = Field(..., description="Server uptime in seconds")
+
+
+# =============================================================================
+# ERROR RESPONSES
+# =============================================================================
+
+
+class ErrorResponse(BaseModel):
+    """Standard error response."""
+
+    success: bool = False
+    error: str = Field(..., description="Error message")
+    detail: Optional[str] = Field(None, description="Additional error details")

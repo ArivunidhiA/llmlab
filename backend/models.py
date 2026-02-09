@@ -1,126 +1,129 @@
-"""SQLAlchemy ORM models"""
+"""
+SQLAlchemy ORM models for LLMLab.
 
-from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey, Boolean, JSON
-from sqlalchemy.orm import relationship
-from datetime import datetime
+Tables:
+- users: GitHub-authenticated users
+- api_keys: Encrypted provider API keys with proxy keys
+- usage_logs: Token usage and cost tracking
+"""
+
+import secrets
 import uuid
+from datetime import datetime
+from typing import Optional
+
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import relationship
 
 from database import Base
 
 
+def generate_uuid() -> str:
+    """Generate a new UUID string."""
+    return str(uuid.uuid4())
+
+
+def generate_proxy_key() -> str:
+    """
+    Generate a unique proxy key for API access.
+
+    Format: llmlab_pk_{32 random hex chars}
+    """
+    return f"llmlab_pk_{secrets.token_hex(16)}"
+
+
 class User(Base):
-    """User account"""
+    """
+    User account authenticated via GitHub OAuth.
+
+    Attributes:
+        id: Unique identifier (UUID)
+        github_id: GitHub user ID (unique)
+        email: User's email from GitHub
+        username: GitHub username
+        avatar_url: GitHub profile picture URL
+        created_at: Account creation timestamp
+        is_active: Whether account is active
+    """
+
     __tablename__ = "users"
-    
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    email = Column(String, unique=True, index=True, nullable=False)
-    password_hash = Column(String, nullable=False)
-    first_name = Column(String, nullable=True)
-    last_name = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Notification preferences
-    slack_webhook = Column(String, nullable=True)
-    discord_webhook = Column(String, nullable=True)
-    email_alerts = Column(Boolean, default=True)
-    
+
+    id: str = Column(String(36), primary_key=True, default=generate_uuid)
+    github_id: int = Column(Integer, unique=True, nullable=False, index=True)
+    email: str = Column(String(255), nullable=False, index=True)
+    username: Optional[str] = Column(String(255), nullable=True)
+    avatar_url: Optional[str] = Column(String(500), nullable=True)
+    created_at: datetime = Column(DateTime, default=datetime.utcnow, nullable=False)
+    is_active: bool = Column(Boolean, default=True, nullable=False)
+
     # Relationships
-    api_keys = relationship("APIKey", back_populates="user", cascade="all, delete-orphan")
-    events = relationship("Event", back_populates="user", cascade="all, delete-orphan")
-    budgets = relationship("Budget", back_populates="user", cascade="all, delete-orphan")
+    api_keys = relationship("ApiKey", back_populates="user", cascade="all, delete-orphan")
+    usage_logs = relationship("UsageLog", back_populates="user", cascade="all, delete-orphan")
 
 
-class APIKey(Base):
-    """API keys for users"""
+class ApiKey(Base):
+    """
+    Encrypted API key for a provider.
+
+    Users store their real API keys (encrypted), and receive a proxy key
+    that they use in their applications. LLMLab intercepts requests and
+    uses the real key to forward to the provider.
+
+    Attributes:
+        id: Unique identifier (UUID)
+        user_id: Foreign key to users
+        provider: Provider name (openai, anthropic)
+        encrypted_key: Fernet-encrypted real API key
+        proxy_key: Unique key user uses in their apps
+        created_at: Creation timestamp
+        last_used_at: Last usage timestamp
+        is_active: Whether key is active
+    """
+
     __tablename__ = "api_keys"
-    
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, ForeignKey("users.id"), nullable=False)
-    provider = Column(String, nullable=False)  # openai, anthropic, google, cohere
-    encrypted_key = Column(String, nullable=False)
-    key_prefix = Column(String, nullable=False)  # For display (e.g., sk-...)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    last_used = Column(DateTime, nullable=True)
-    is_active = Column(Boolean, default=True)
-    
+
+    id: str = Column(String(36), primary_key=True, default=generate_uuid)
+    user_id: str = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider: str = Column(String(50), nullable=False, index=True)
+    encrypted_key: str = Column(Text, nullable=False)
+    proxy_key: str = Column(String(50), unique=True, nullable=False, index=True, default=generate_proxy_key)
+    created_at: datetime = Column(DateTime, default=datetime.utcnow, nullable=False)
+    last_used_at: Optional[datetime] = Column(DateTime, nullable=True)
+    is_active: bool = Column(Boolean, default=True, nullable=False)
+
     # Relationships
     user = relationship("User", back_populates="api_keys")
 
 
-class Event(Base):
-    """LLM API call events"""
-    __tablename__ = "events"
-    
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
-    
-    # Event metadata
-    provider = Column(String, nullable=False)  # openai, anthropic, google, cohere
-    model = Column(String, nullable=False, index=True)
-    
-    # Token counts
-    input_tokens = Column(Integer, default=0)
-    output_tokens = Column(Integer, default=0)
-    
-    # Timing
-    duration_ms = Column(Float, default=0.0)
-    
-    # Request metadata
-    request_metadata = Column(JSON, default={})  # Custom fields
-    
-    # Cost calculation
-    calculated_cost = Column(Float, default=0.0, index=True)  # USD
-    currency = Column(String, default="USD")
-    
-    # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-    
+class UsageLog(Base):
+    """
+    Log of API usage for cost tracking.
+
+    Every proxied request logs tokens and calculated cost.
+
+    Attributes:
+        id: Unique identifier (UUID)
+        user_id: Foreign key to users
+        provider: Provider name (openai, anthropic)
+        model: Model name used
+        input_tokens: Number of input/prompt tokens
+        output_tokens: Number of output/completion tokens
+        cost_usd: Calculated cost in USD
+        request_id: Optional request ID for tracing
+        created_at: Timestamp of the request
+    """
+
+    __tablename__ = "usage_logs"
+
+    id: str = Column(String(36), primary_key=True, default=generate_uuid)
+    user_id: str = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider: str = Column(String(50), nullable=False, index=True)
+    model: str = Column(String(100), nullable=False, index=True)
+    input_tokens: int = Column(Integer, default=0, nullable=False)
+    output_tokens: int = Column(Integer, default=0, nullable=False)
+    cost_usd: float = Column(Float, default=0.0, nullable=False, index=True)
+    request_id: Optional[str] = Column(String(100), nullable=True)
+    created_at: datetime = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
     # Relationships
-    user = relationship("User", back_populates="events")
-
-
-class Budget(Base):
-    """User budget configurations"""
-    __tablename__ = "budgets"
-    
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, ForeignKey("users.id"), nullable=False)
-    
-    # Budget limits
-    monthly_limit = Column(Float, nullable=False)  # USD
-    period = Column(String, default="monthly")  # monthly, weekly
-    
-    # Alert thresholds
-    alert_at_50 = Column(Boolean, default=True)
-    alert_at_80 = Column(Boolean, default=True)
-    alert_at_100 = Column(Boolean, default=True)
-    
-    # Notification channels
-    alert_channel = Column(String, default="email")  # email, slack, discord
-    
-    # Tracking
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Relationships
-    user = relationship("User", back_populates="budgets")
-
-
-class AlertLog(Base):
-    """Log of sent alerts"""
-    __tablename__ = "alert_logs"
-    
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, ForeignKey("users.id"), nullable=False)
-    budget_id = Column(String, ForeignKey("budgets.id"), nullable=False)
-    
-    # Alert details
-    alert_type = Column(String)  # 50%, 80%, 100%
-    current_spend = Column(Float)
-    limit = Column(Float)
-    
-    # Channel info
-    channel = Column(String)  # email, slack, discord
-    sent_at = Column(DateTime, default=datetime.utcnow)
-    success = Column(Boolean, default=True)
+    user = relationship("User", back_populates="usage_logs")
