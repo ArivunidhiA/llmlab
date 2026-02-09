@@ -1,47 +1,49 @@
-"""Database connection and session management."""
+"""Database connection and session management"""
 
-from supabase import create_client, Client
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.pool import NullPool
+from typing import Generator
+import os
+
 from config import settings
-from typing import Optional
-import logging
 
-logger = logging.getLogger(__name__)
+# For local development with PostgreSQL
+DATABASE_URL = settings.database_url
 
+# For Supabase (if configured)
+if settings.supabase_url and settings.supabase_key:
+    # Construct direct PostgreSQL connection string from Supabase
+    DATABASE_URL = f"postgresql://postgres:{settings.supabase_key}@{settings.supabase_url.replace('https://', '')}/postgres"
 
-class Database:
-    """Supabase database wrapper."""
-    
-    _client: Optional[Client] = None
-    
-    @classmethod
-    def get_client(cls) -> Client:
-        """Get or create Supabase client."""
-        if cls._client is None:
-            try:
-                cls._client = create_client(
-                    settings.SUPABASE_URL,
-                    settings.SUPABASE_KEY
-                )
-                logger.info("Connected to Supabase")
-            except Exception as e:
-                logger.error(f"Failed to connect to Supabase: {e}")
-                raise
-        return cls._client
-    
-    @classmethod
-    async def test_connection(cls) -> bool:
-        """Test database connection."""
-        try:
-            client = cls.get_client()
-            # Test with a simple health check query
-            result = client.table("users").select("COUNT(*)").execute()
-            return True
-        except Exception as e:
-            logger.error(f"Database connection test failed: {e}")
-            return False
+# Create engine
+engine = create_engine(
+    DATABASE_URL,
+    echo=settings.debug,
+    poolclass=NullPool,  # Disable connection pooling for serverless
+    pool_pre_ping=True,  # Check connections before use
+)
+
+# Session factory
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
+)
+
+# Base class for models
+Base = declarative_base()
 
 
-# Dependency for FastAPI
-async def get_db() -> Client:
-    """FastAPI dependency to get database client."""
-    return Database.get_client()
+def get_db() -> Generator:
+    """Dependency for FastAPI to get DB session"""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def init_db():
+    """Create all tables"""
+    Base.metadata.create_all(bind=engine)
