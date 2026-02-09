@@ -26,7 +26,7 @@ The database is designed for:
 8. `recommendations` — Optimization recommendations
 9. `traces` — Agent execution traces (JSONB)
 10. `api_keys` — API key management
-11. `audit_logs` — Compliance audit trail
+11. `audit_logs` — Activity logging for debugging
 
 ---
 
@@ -647,7 +647,7 @@ psql llmlab_db < llmlab_backup_20240115.sql
 ## DATA RETENTION POLICY
 
 ```sql
--- Delete old cost records (GDPR compliance)
+-- Delete old cost records (data retention)
 DELETE FROM cost_records 
 WHERE created_at < CURRENT_DATE - INTERVAL '90 days'
 AND project_id NOT IN (

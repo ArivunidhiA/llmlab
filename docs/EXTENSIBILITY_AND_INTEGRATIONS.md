@@ -565,7 +565,7 @@ def register_integration(name: str, integration_class):
 - PII detection
 - Hallucination detection
 - Bias detection
-- Industry-specific compliance (GDPR, HIPAA, FedRAMP)
+- Industry-specific checks (custom validators)
 - Custom domain evals
 
 ### Eval Interface
