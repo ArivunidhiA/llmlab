@@ -2,29 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
-* {
-  @apply border-slate-200 dark:border-slate-700;
-}
-
-html {
-  @apply scroll-smooth;
+/* Base styles */
+:root {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 body {
-  @apply bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-50 transition-colors duration-200;
+  font-family: var(--font-sans);
 }
 
-/* Smooth transitions for dark mode */
-@media (prefers-reduced-motion: reduce) {
-  html {
-    @apply scroll-auto;
-  }
-  
-  *,
-  *::before,
-  *::after {
-    @apply !transition-none !animate-none;
-  }
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
 }
 
 /* Custom scrollbar */
@@ -34,14 +24,60 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-slate-100 dark:bg-slate-800;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-300 dark:bg-slate-600 rounded-full hover:bg-slate-400 dark:hover:bg-slate-500;
+  background: #cbd5e1;
+  border-radius: 4px;
 }
 
-/* Selection color */
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Selection */
 ::selection {
-  @apply bg-blue-500 text-white;
+  background: #3b82f6;
+  color: white;
+}
+
+/* Focus outline */
+*:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Tabular numbers for costs */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Animations */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+/* Recharts tooltip override */
+.recharts-tooltip-wrapper {
+  outline: none !important;
 }

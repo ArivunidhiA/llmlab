@@ -1,7 +1,14 @@
+/**
+ * LLMLab Frontend Types
+ * @description Core TypeScript interfaces for the LLMLab dashboard
+ */
+
 export interface User {
   id: string;
   email: string;
   name: string;
+  github_username?: string;
+  avatar_url?: string;
   created_at: string;
   updated_at: string;
 }
@@ -10,54 +17,40 @@ export interface APIKey {
   id: string;
   key: string;
   name: string;
+  prefix: string;
   last_used: string | null;
   created_at: string;
 }
 
-export interface CostData {
+export interface DailyCost {
   date: string;
-  amount: number;
-  model: string;
+  cost: number;
+  requests: number;
 }
 
 export interface ModelCost {
   model: string;
   cost: number;
   percentage: number;
+  requests: number;
   tokens: number;
 }
 
-export interface BudgetAlert {
-  id: string;
-  threshold: number;
-  email: string;
-  enabled: boolean;
-  created_at: string;
-}
-
-export interface DashboardMetrics {
-  total_spend: number;
-  monthly_spend: number;
-  daily_spend: number;
-  budget_limit: number;
-  budget_percentage: number;
-  spend_by_model: ModelCost[];
-  spend_trends: CostData[];
-  recommendations: Recommendation[];
-}
-
-export interface Recommendation {
-  id: string;
-  title: string;
-  description: string;
-  potential_savings: number;
-  category: "optimization" | "cost_reduction" | "usage";
-  priority: "low" | "medium" | "high";
+export interface Stats {
+  today: number;
+  this_month: number;
+  all_time: number;
+  by_model: ModelCost[];
+  daily_costs: DailyCost[];
 }
 
 export interface AuthResponse {
-  success: boolean;
-  message: string;
-  token?: string;
-  user?: User;
+  access_token: string;
+  token_type: string;
+  user: User;
+}
+
+export interface APIError {
+  detail: string;
+  status_code?: number;
 }

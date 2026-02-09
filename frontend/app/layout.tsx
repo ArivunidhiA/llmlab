@@ -1,23 +1,29 @@
-import type { Metadata } from "next";
-import { ReactNode } from "react";
-import "./globals.css";
+/**
+ * Root Layout
+ * @description Global layout with dark mode support and Inter font
+ */
+
+import type { Metadata, Viewport } from 'next';
+import { ReactNode } from 'react';
+import './globals.css';
 
 export const metadata: Metadata = {
-  title: "LLMLab - AI Model Cost Management",
-  description: "Track, analyze, and optimize your AI model costs with real-time monitoring and budget alerts.",
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 1,
-  },
+  title: 'LLMLab - Track Your LLM Costs',
+  description: 'Track and optimize your LLM costs in 2 minutes. Simple proxy approach - just swap your env var.',
   icons: {
     icon: [
       {
-        url: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-size='22' font-weight='bold' fill='%233b82f6'>₹</text></svg>",
-        type: "image/svg+xml",
+        url: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23000'/><text x='50%' y='50%' dominant-baseline='central' text-anchor='middle' font-size='14' font-weight='bold' fill='%23fff'>LL</text></svg>",
+        type: 'image/svg+xml',
       },
     ],
   },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({
@@ -28,24 +34,24 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {/* Prevent flash of wrong theme */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
               try {
-                if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                  document.documentElement.classList.add('dark')
+                const theme = localStorage.getItem('theme');
+                if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                  document.documentElement.classList.add('dark');
                 } else {
-                  document.documentElement.classList.remove('dark')
+                  document.documentElement.classList.remove('dark');
                 }
               } catch (e) {}
             `,
           }}
         />
       </head>
-      <body>
-        <div className="min-h-screen bg-white dark:bg-slate-950">
-          {children}
-        </div>
+      <body className="antialiased">
+        {children}
       </body>
     </html>
   );

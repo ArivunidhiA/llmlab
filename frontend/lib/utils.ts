@@ -1,97 +1,96 @@
-import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
+/**
+ * LLMLab Utility Functions
+ * @description Helper functions for formatting and common operations
+ */
 
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
-
-export function formatCurrency(amount: number, currency: string = "USD"): string {
-  const formatter = new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
+/**
+ * Format a number as USD currency
+ */
+export function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  });
-  return formatter.format(amount);
+  }).format(amount);
 }
 
-export function formatDate(date: string | Date): string {
-  const d = typeof date === "string" ? new Date(date) : date;
-  return new Intl.DateTimeFormat("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  }).format(d);
+/**
+ * Format a number with compact notation (e.g., 1.2K, 1.5M)
+ */
+export function formatCompact(num: number): string {
+  return new Intl.NumberFormat('en-US', {
+    notation: 'compact',
+    compactDisplay: 'short',
+  }).format(num);
 }
 
-export function formatNumber(num: number): string {
-  return new Intl.NumberFormat("en-US").format(num);
+/**
+ * Format a date string to readable format
+ */
+export function formatDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+  }).format(date);
 }
 
-export function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((word) => word[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+/**
+ * Format a date string to full readable format
+ */
+export function formatDateFull(dateStr: string): string {
+  const date = new Date(dateStr);
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date);
 }
 
-export function copyToClipboard(text: string): Promise<boolean> {
-  if (navigator?.clipboard?.writeText) {
-    return navigator.clipboard.writeText(text).then(() => true).catch(() => false);
+/**
+ * Calculate percentage
+ */
+export function percentage(value: number, total: number): number {
+  if (total === 0) return 0;
+  return (value / total) * 100;
+}
+
+/**
+ * Truncate text with ellipsis
+ */
+export function truncate(text: string, length: number): string {
+  if (text.length <= length) return text;
+  return text.slice(0, length) + '...';
+}
+
+/**
+ * Generate a color for a model name (consistent hashing)
+ */
+export function getModelColor(model: string): string {
+  const colors = [
+    '#3B82F6', // blue
+    '#10B981', // emerald
+    '#8B5CF6', // violet
+    '#F59E0B', // amber
+    '#EF4444', // red
+    '#06B6D4', // cyan
+    '#EC4899', // pink
+    '#6366F1', // indigo
+  ];
+  
+  // Simple hash based on model name
+  let hash = 0;
+  for (let i = 0; i < model.length; i++) {
+    hash = model.charCodeAt(i) + ((hash << 5) - hash);
   }
   
-  // Fallback for older browsers
-  const textarea = document.createElement("textarea");
-  textarea.value = text;
-  textarea.style.position = "fixed";
-  textarea.style.opacity = "0";
-  document.body.appendChild(textarea);
-  textarea.select();
-  
-  try {
-    document.execCommand("copy");
-    document.body.removeChild(textarea);
-    return Promise.resolve(true);
-  } catch {
-    document.body.removeChild(textarea);
-    return Promise.resolve(false);
-  }
+  return colors[Math.abs(hash) % colors.length];
 }
 
-export function calculatePercentageChange(current: number, previous: number): number {
-  if (previous === 0) return 0;
-  return ((current - previous) / previous) * 100;
-}
-
-export function getColorForPercentage(percentage: number): string {
-  if (percentage <= 33) return "text-green-600 dark:text-green-400";
-  if (percentage <= 66) return "text-yellow-600 dark:text-yellow-400";
-  return "text-red-600 dark:text-red-400";
-}
-
-export function getProgressColor(percentage: number): string {
-  if (percentage <= 50) return "bg-green-500";
-  if (percentage <= 80) return "bg-yellow-500";
-  return "bg-red-500";
-}
-
-export function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-export function debounce<T extends (...args: any[]) => any>(
-  func: T,
-  wait: number
-): (...args: Parameters<T>) => void {
-  let timeout: NodeJS.Timeout;
-  return function executedFunction(...args: Parameters<T>) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
+/**
+ * Classname merger utility
+ */
+export function cn(...classes: (string | undefined | null | false)[]): string {
+  return classes.filter(Boolean).join(' ');
 }

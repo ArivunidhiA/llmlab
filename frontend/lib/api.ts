@@ -1,72 +1,156 @@
-import axios from 'axios'
+/**
+ * LLMLab API Client
+ * @description HTTP client with JWT auth, auto-logout on 401, and error handling
+ */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+import { Stats, APIKey, User, AuthResponse, APIError } from '@/types';
 
-export const apiClient = axios.create({
-  baseURL: API_URL,
-})
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-// Add auth token to requests
-apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token')
+/**
+ * Get the stored JWT token
+ */
+function getToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('llmlab_token');
+}
+
+/**
+ * Store JWT token
+ */
+export function setToken(token: string): void {
+  localStorage.setItem('llmlab_token', token);
+}
+
+/**
+ * Remove JWT token and redirect to login
+ */
+export function logout(): void {
+  localStorage.removeItem('llmlab_token');
+  localStorage.removeItem('llmlab_user');
+  window.location.href = '/';
+}
+
+/**
+ * Store user data
+ */
+export function setUser(user: User): void {
+  localStorage.setItem('llmlab_user', JSON.stringify(user));
+}
+
+/**
+ * Get stored user data
+ */
+export function getUser(): User | null {
+  if (typeof window === 'undefined') return null;
+  const data = localStorage.getItem('llmlab_user');
+  return data ? JSON.parse(data) : null;
+}
+
+/**
+ * Check if user is authenticated
+ */
+export function isAuthenticated(): boolean {
+  return !!getToken();
+}
+
+/**
+ * API fetch wrapper with auth and error handling
+ */
+async function apiFetch<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const token = getToken();
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  };
+  
   if (token) {
-    config.headers.Authorization = `Bearer ${token}`
+    (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
   }
-  return config
-})
 
-// Handle 401 responses
-apiClient.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('access_token')
-      window.location.href = '/login'
-    }
-    return Promise.reject(error)
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  // Auto-logout on 401
+  if (response.status === 401) {
+    logout();
+    throw new Error('Session expired. Please log in again.');
   }
-)
 
-export const auth = {
-  signup: (email: string, password: string, first_name?: string, last_name?: string) =>
-    apiClient.post('/api/auth/signup', { email, password, first_name, last_name }),
-  
-  login: (email: string, password: string) =>
-    apiClient.post('/api/auth/login', { email, password }),
-  
-  logout: () =>
-    apiClient.post('/api/auth/logout'),
-  
-  getMe: () =>
-    apiClient.get('/api/auth/me'),
+  if (!response.ok) {
+    const error: APIError = await response.json().catch(() => ({ 
+      detail: 'An error occurred' 
+    }));
+    throw new Error(error.detail || `HTTP ${response.status}`);
+  }
+
+  return response.json();
 }
 
-export const events = {
-  track: (provider: string, model: string, input_tokens: number, output_tokens: number, duration_ms?: number) =>
-    apiClient.post('/api/events/track', { provider, model, input_tokens, output_tokens, duration_ms }),
-  
-  list: (limit?: number, offset?: number) =>
-    apiClient.get('/api/events', { params: { limit, offset } }),
+/**
+ * Exchange GitHub OAuth code for JWT token
+ */
+export async function githubCallback(code: string): Promise<AuthResponse> {
+  return apiFetch<AuthResponse>('/auth/github/callback', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  });
 }
 
-export const costs = {
-  summary: () =>
-    apiClient.get('/api/costs/summary'),
-  
-  recommendations: () =>
-    apiClient.get('/api/recommendations'),
+/**
+ * Get user's cost statistics
+ */
+export async function getStats(): Promise<Stats> {
+  return apiFetch<Stats>('/api/v1/stats');
 }
 
-export const budgets = {
-  create: (monthly_limit: number, alert_channel?: string) =>
-    apiClient.post('/api/budgets', { monthly_limit, alert_channel }),
-  
-  list: () =>
-    apiClient.get('/api/budgets'),
-  
-  update: (budgetId: string, data: any) =>
-    apiClient.put(`/api/budgets/${budgetId}`, data),
-  
-  delete: (budgetId: string) =>
-    apiClient.delete(`/api/budgets/${budgetId}`),
+/**
+ * Get user's API keys
+ */
+export async function getKeys(): Promise<APIKey[]> {
+  return apiFetch<APIKey[]>('/api/v1/keys');
 }
+
+/**
+ * Create a new API key
+ */
+export async function createKey(name: string): Promise<APIKey> {
+  return apiFetch<APIKey>('/api/v1/keys', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
+}
+
+/**
+ * Delete an API key
+ */
+export async function deleteKey(keyId: string): Promise<void> {
+  await apiFetch<void>(`/api/v1/keys/${keyId}`, {
+    method: 'DELETE',
+  });
+}
+
+/**
+ * Get current user info
+ */
+export async function getMe(): Promise<User> {
+  return apiFetch<User>('/api/v1/me');
+}
+
+// Export all API functions
+export const api = {
+  githubCallback,
+  getStats,
+  getKeys,
+  createKey,
+  deleteKey,
+  getMe,
+};
+
+export default api;

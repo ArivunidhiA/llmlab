@@ -1,283 +1,145 @@
 # LLMLab Frontend
 
-Production-ready React dashboard for AI model cost management and optimization.
+A beautiful, minimal dashboard for tracking LLM costs. Built with Next.js 14, React, TypeScript, and Tailwind CSS.
 
 ## Features
 
-- 📊 **Real-time Analytics** - Monitor spending across all AI models
-- 💰 **Cost Tracking** - Detailed breakdown by model and time period
-- ⚠️ **Smart Alerts** - Budget threshold notifications
-- 💡 **AI Recommendations** - Personalized cost optimization suggestions
-- 🔐 **Secure API Keys** - Manage integration credentials safely
-- 🌙 **Dark Mode** - Full dark mode support
-- 📱 **Responsive** - Mobile-friendly design
-- ✅ **Type-Safe** - Full TypeScript support
+- 🎯 **Landing Page** - Clean hero, problem/solution, install instructions
+- 📊 **Dashboard** - Real-time cost tracking with charts and tables
+- 🌙 **Dark Mode** - Auto-detects system preference, manual toggle
+- 📱 **Responsive** - Works on mobile, tablet, and desktop
+- 🔐 **GitHub OAuth** - Secure authentication
+- ⚡ **Real-time Updates** - Polls backend every 5 seconds
 
-## Tech Stack
-
-- **Framework**: Next.js 14+ (App Router)
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS
-- **Charts**: Recharts
-- **Testing**: Jest + React Testing Library
-- **Form Validation**: Native HTML5 + Custom
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 18+ or higher
-- npm/yarn/pnpm
-
-### Installation
+## Quick Start
 
 ```bash
 # Install dependencies
 npm install
 
-# Set up environment variables
+# Copy environment variables
 cp .env.example .env.local
-# Edit .env.local with your API URL
-```
 
-### Development
+# Edit .env.local with your values
+# - NEXT_PUBLIC_API_URL
+# - NEXT_PUBLIC_GITHUB_CLIENT_ID
+# - NEXT_PUBLIC_GITHUB_REDIRECT_URI
 
-```bash
+# Start development server
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-### Production Build
-
-```bash
-npm run build
-npm start
-```
+Open [http://localhost:3000](http://localhost:3000) to view the app.
 
 ## Project Structure
 
 ```
-llmlab/frontend/
-├── app/                          # Next.js app directory
-│   ├── layout.tsx               # Root layout
-│   ├── page.tsx                 # Landing page
-│   ├── login/
-│   ├── signup/
+frontend/
+├── app/
+│   ├── page.tsx              # Landing page
 │   ├── dashboard/
-│   └── settings/
-├── components/                   # Reusable UI components
-│   ├── Button.tsx
-│   ├── Card.tsx
-│   ├── Alert.tsx
-│   ├── Input.tsx
-│   ├── Header.tsx
-│   ├── CostCard.tsx
-│   ├── BarChart.tsx
-│   ├── LineChart.tsx
-│   └── BudgetProgressBar.tsx
-├── lib/                         # Utility functions
-│   ├── utils.ts                # General utilities
-│   └── api.ts                  # API client
-├── types/                       # TypeScript types
-│   └── index.ts
-├── __tests__/                   # Unit tests
-├── globals.css                  # Global styles
-├── tailwind.config.ts
-├── tsconfig.json
-└── next.config.ts
+│   │   └── page.tsx          # Dashboard page
+│   ├── auth/
+│   │   └── callback/
+│   │       └── page.tsx      # OAuth callback
+│   ├── layout.tsx            # Root layout
+│   └── globals.css           # Global styles
+├── components/
+│   ├── Navigation.tsx        # Header with user menu
+│   ├── Button.tsx            # Reusable button
+│   ├── CostCard.tsx          # Cost metric card
+│   ├── ModelChart.tsx        # Bar chart by model
+│   └── DailyTable.tsx        # Daily costs table
+├── lib/
+│   ├── api.ts                # API client with auth
+│   └── utils.ts              # Helper functions
+├── types/
+│   └── index.ts              # TypeScript interfaces
+└── __tests__/                # Jest tests
+```
+
+## Environment Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `NEXT_PUBLIC_API_URL` | Backend API URL | `http://localhost:8000` |
+| `NEXT_PUBLIC_GITHUB_CLIENT_ID` | GitHub OAuth App ID | `abc123` |
+| `NEXT_PUBLIC_GITHUB_REDIRECT_URI` | OAuth callback URL | `http://localhost:3000/auth/callback` |
+
+## Scripts
+
+```bash
+npm run dev       # Start development server
+npm run build     # Build for production
+npm run start     # Start production server
+npm run lint      # Run ESLint
+npm run test      # Run tests
+npm run test:watch # Run tests in watch mode
 ```
 
 ## API Integration
 
-The frontend communicates with the backend via the `lib/api.ts` module. Configure your API URL:
+The frontend expects these backend endpoints:
 
-```bash
-# In .env.local
-NEXT_PUBLIC_API_URL=http://localhost:8000/api
+```
+POST /auth/github/callback  - Exchange OAuth code for JWT
+GET  /api/v1/stats          - Get cost statistics
+GET  /api/v1/keys           - Get user's API keys
+POST /api/v1/keys           - Create new API key
+DELETE /api/v1/keys/:id     - Delete API key
+GET  /api/v1/me             - Get current user
 ```
 
-### Available Endpoints
+## Styling
 
-- `POST /auth/signup` - Create account
-- `POST /auth/login` - Login
-- `GET /dashboard/metrics` - Get dashboard data
-- `GET /api-keys` - List API keys
-- `POST /api-keys` - Create API key
-- `DELETE /api-keys/{id}` - Delete API key
-- `GET /budget` - Get budget settings
-- `PUT /budget` - Update budget limit
-- `GET /alerts` - List budget alerts
-- `POST /alerts` - Create alert
-- `PUT /alerts/{id}` - Update alert
-
-## Features
-
-### Pages
-
-#### Landing Page
-- Hero section with CTA
-- Features showcase
-- Pricing table
-- FAQ section
-
-#### Authentication
-- Sign up with email/password
-- Login page
-- Form validation
-- Error handling
-
-#### Dashboard
-- Total spend card
-- Monthly and daily spend tracking
-- Budget progress bar with alerts
-- Spend by model bar chart
-- Spend trends line chart
-- AI-powered recommendations
-- Model usage breakdown
-
-#### Settings
-- API key management (create, copy, delete)
-- Budget limit configuration
-- Budget alerts setup
-- User profile (extensible)
-
-### Components
-
-**UI Components**
-- `Button` - Multiple variants and sizes
-- `Card` - With header, body, footer
-- `Alert` - Info, success, warning, error
-- `Input` - With validation and helpers
-- `Header` - Navigation with user menu
-
-**Dashboard Components**
-- `CostCard` - Display spending metrics
-- `BarChart` - Model cost visualization
-- `LineChart` - Spending trends
-- `BudgetProgressBar` - Budget status with alerts
+- **Tailwind CSS** - Utility-first CSS framework
+- **No component library** - All components hand-crafted
+- **Apple-inspired** - Minimal, clean, lots of whitespace
+- **System fonts** - Uses native font stack for performance
 
 ## Testing
 
 ```bash
-# Run tests
+# Run all tests
 npm test
 
+# Run with coverage
+npm run test:coverage
+
 # Watch mode
-npm test:watch
-
-# Coverage
-npm test -- --coverage
-```
-
-## Dark Mode
-
-Dark mode is automatically enabled based on user preference or system settings. Users can toggle it via the header button. The preference is saved in localStorage.
-
-## Performance Optimizations
-
-- Code splitting with dynamic imports
-- Image optimization
-- CSS-in-JS with Tailwind (no extra CSS)
-- Optimized recharts bundle imports
-- Debounced API polling
-
-## Browser Support
-
-- Chrome/Edge 90+
-- Firefox 88+
-- Safari 14+
-- Mobile browsers (iOS Safari 14+, Chrome Mobile)
-
-## Environment Variables
-
-```
-NEXT_PUBLIC_API_URL      - Backend API base URL (required)
-NEXT_PUBLIC_ENABLE_ANALYTICS - Enable analytics (default: true)
-NEXT_PUBLIC_ENABLE_DARK_MODE - Enable dark mode (default: true)
+npm run test:watch
 ```
 
 ## Deployment
 
 ### Vercel (Recommended)
 
-```bash
-npm install -g vercel
-vercel
-```
+1. Push to GitHub
+2. Import to Vercel
+3. Add environment variables
+4. Deploy
 
 ### Docker
 
 ```dockerfile
-FROM node:18-alpine
+FROM node:20-alpine
 WORKDIR /app
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 COPY . .
 RUN npm run build
 CMD ["npm", "start"]
 ```
 
-### Traditional Hosting
+## Tech Stack
 
-```bash
-npm run build
-# Deploy the .next folder and public folder
-npm start
-```
-
-## Customization
-
-### Colors
-
-Edit `tailwind.config.ts` to customize colors:
-
-```typescript
-colors: {
-  blue: '#3b82f6',
-  green: '#10b981',
-  // ...
-}
-```
-
-### API Polling
-
-Adjust polling interval in `lib/api.ts`:
-
-```typescript
-pollMetrics(callback, 30000) // 30 seconds
-```
-
-## Troubleshooting
-
-### Port already in use
-```bash
-npm run dev -- -p 3001
-```
-
-### Build errors
-```bash
-rm -rf .next node_modules
-npm install
-npm run build
-```
-
-### API connection issues
-- Verify `NEXT_PUBLIC_API_URL` in `.env.local`
-- Check backend is running
-- Review CORS configuration
-
-## Contributing
-
-1. Create a feature branch
-2. Make your changes
-3. Add tests
-4. Submit a pull request
+- **Next.js 14** - React framework with App Router
+- **React 18** - UI library
+- **TypeScript** - Type safety
+- **Tailwind CSS** - Styling
+- **Recharts** - Charts
+- **Jest** - Testing
 
 ## License
 
-MIT License - See LICENSE file for details
-
-## Support
-
-For issues and questions, please create an issue in the repository.
+MIT
